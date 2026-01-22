@@ -42,16 +42,14 @@ This is not a simple downsampling filter. **Pixelformer** is an AI-powered tool 
 
 ## 🖼️ Gallery (效果展示)
 
-> *Place your screenshots here / 请在此处替换为你的实际运行截图或 GIF*
-
 <div align="center">
   <img src="assets/demo_preview.gif" alt="App Demo" width="800">
 </div>
 
-| Input (原图) | Pixel Art (像素画) | Palette (色板) |
+| Input (原图) | Pixel Art (像素画 128 ) | Pixel Art (像素画 256 )  |
 | :---: | :---: | :---: |
-| <img src="assets/sample1_in.jpg" width="200"> | <img src="assets/sample1_out.png" width="200"> | ![Palette](https://via.placeholder.com/200x30/333333/ffffff?text=Palette+Colors) |
-
+| <img src="example/o1.png" width="200"> | <img src="example/d1_128.png" width="200"> |<img src="example/d1_256.png" width="200"> |
+| <img src="example/o2.png" width="200"> | <img src="example/d2_128.png" width="200"> |<img src="example/d2_256.png" width="200"> |
 ---
 
 ## 🛠 Technical Architecture (技术架构)
