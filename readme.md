@@ -43,7 +43,7 @@ This is not a simple downsampling filter. **Pixelformer** is an AI-powered tool 
 ## 🖼️ Gallery (效果展示)
 
 <div align="center">
-  <img src="assets/demo_preview.gif" alt="App Demo" width="800">
+  <img src="example/face.png"width="800">
 </div>
 
 | Input (原图) | Pixel Art (像素画 128 ) | Pixel Art (像素画 256 )  |
