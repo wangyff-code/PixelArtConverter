@@ -1,0 +1,5 @@
+PixelArtConverter.spec
+venv
+onnx_models
+dist
+build
