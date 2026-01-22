@@ -1,0 +1,620 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>像素画转换器 (Pixel Art Converter)</title>
+    <style>
+        :root {
+            /* 白色主题变量 */
+            --bg-color: #f0f2f5;
+            --panel-color: #ffffff;
+            --text-color: #333333;
+            --border-color: #ddd;
+            --accent-color: #4a90e2;
+            --accent-hover: #357abd;
+        }
+        body {
+            font-family: 'Microsoft YaHei', 'Segoe UI', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            margin: 0;
+            height: 100vh;
+            display: flex;
+            flex-direction: column;
+            user-select: none; /* 防止拖拽时选中文字 */
+        }
+        .container {
+            display: flex;
+            flex: 1;
+            padding: 20px;
+            gap: 20px;
+            overflow: hidden;
+        }
+        
+        /* 左侧设置栏 */
+        .sidebar {
+            width: 320px;
+            background-color: var(--panel-color);
+            padding: 25px;
+            border-radius: 12px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            overflow-y: auto;
+            border: 1px solid var(--border-color);
+            flex-shrink: 0;
+        }
+        h2 { margin-top: 0; font-size: 1.5rem; color: #1a1a1a; }
+        h3 { margin: 0; font-size: 1.1rem; color: #555; }
+        
+        .control-group {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+        label {
+            font-size: 0.9em;
+            font-weight: 600;
+            color: #555;
+        }
+        .sub-label {
+            font-size: 0.8em;
+            color: #888;
+            font-weight: normal;
+        }
+        
+        input[type="number"], input[type="text"] {
+            padding: 10px;
+            background: #fff;
+            border: 1px solid #ccc;
+            color: var(--text-color);
+            border-radius: 6px;
+            transition: border 0.2s;
+        }
+        input[type="number"]:focus { border-color: var(--accent-color); outline: none; }
+        
+        /* 按钮样式 */
+        button {
+            background-color: var(--accent-color);
+            color: white;
+            border: none;
+            padding: 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 1rem;
+            transition: all 0.2s;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1);
+        }
+        button:hover { background-color: var(--accent-hover); transform: translateY(-1px); }
+        button:active { transform: translateY(0); }
+        button:disabled { background-color: #ccc; cursor: not-allowed; transform: none; }
+        
+        /* 文件上传按钮 */
+        .file-upload-btn {
+            background-color: #f8f9fa;
+            text-align: center;
+            padding: 12px;
+            border-radius: 6px;
+            cursor: pointer;
+            border: 2px dashed #ccc;
+            color: #666;
+            transition: border-color 0.2s;
+        }
+        .file-upload-btn:hover { border-color: var(--accent-color); color: var(--accent-color); }
+        #fileInput { display: none; }
+
+        /* 右侧展示区布局 */
+        .right-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            min-width: 0;
+        }
+
+        /* 预览区 (Canvas容器) */
+        .preview-area {
+            flex: 1;
+            background-color: #e5e5e5;
+            background-image: 
+                linear-gradient(45deg, #ddd 25%, transparent 25%), 
+                linear-gradient(-45deg, #ddd 25%, transparent 25%), 
+                linear-gradient(45deg, transparent 75%, #ddd 75%), 
+                linear-gradient(-45deg, transparent 75%, #ddd 75%);
+            background-size: 20px 20px;
+            background-position: 0 0, 0 10px, 10px -10px, -10px 0px;
+            
+            border-radius: 12px;
+            border: 1px solid var(--border-color);
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            
+            /* 新增：光标样式 */
+            cursor: grab;
+            transition: border-color 0.2s, background-color 0.2s;
+        }
+        
+        /* 新增：抓取时的光标 */
+        .preview-area:active {
+            cursor: grabbing;
+        }
+
+        /* 新增：拖拽文件进入时的高亮样式 */
+        .preview-area.drag-over {
+            border: 3px dashed var(--accent-color);
+            background-color: rgba(74, 144, 226, 0.1);
+        }
+
+        /* 结果图片 */
+        #resultImage {
+            max-width: 100%;
+            max-height: 100%;
+            object-fit: contain;
+            image-rendering: pixelated; 
+            image-rendering: -moz-crisp-edges;
+            image-rendering: crisp-edges;
+            transform-origin: center center;
+            /* 移除 transition，因为拖拽时需要实时响应 */
+            /* transition: transform 0.1s ease-out; */ 
+            box-shadow: 0 5px 15px rgba(0,0,0,0.2);
+            pointer-events: none; /* 让鼠标事件穿透图片作用于容器，方便拖拽 */
+        }
+
+        /* 色卡区域样式 */
+        .palette-area {
+            min-height: 100px;
+            flex-shrink: 0;
+            background-color: var(--panel-color);
+            border-radius: 12px;
+            padding: 15px;
+            border: 1px solid var(--border-color);
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.05);
+        }
+        
+        .palette-scroll {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            width: 100%;
+            align-items: flex-start;
+            overflow: visible;
+        }
+        
+        .palette-swatch {
+            width: 38px;
+            height: 38px;
+            border-radius: 4px;
+            border: 1px solid rgba(0,0,0,0.1);
+            flex-shrink: 0;
+            transition: transform 0.2s, box-shadow 0.2s;
+            cursor: pointer;
+        }
+        .palette-swatch:hover { 
+            transform: scale(1.15); 
+            z-index: 10; 
+            border-color: #000; 
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+        }
+
+        .placeholder { 
+            color: #999; 
+            pointer-events: none; 
+            font-size: 1.2rem; 
+            text-align: center;
+            line-height: 1.5;
+        }
+        
+        .radio-group { display: flex; gap: 20px; }
+        .radio-label { display: flex; align-items: center; gap: 8px; cursor: pointer; }
+        
+        .zoom-hint {
+            position: absolute;
+            bottom: 10px;
+            right: 15px;
+            background: rgba(255,255,255,0.8);
+            padding: 5px 10px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            color: #666;
+            pointer-events: none;
+            z-index: 10;
+        }
+        
+        .save-hint-text {
+            text-align: center;
+            color: #888;
+            font-size: 0.85rem;
+            margin-top: 5px;
+            font-style: italic;
+        }
+
+        /* ============ 新增：右键菜单样式 ============ */
+        .context-menu {
+            display: none;
+            position: absolute;
+            z-index: 1000;
+            background-color: #fff;
+            border: 1px solid #ddd;
+            border-radius: 8px;
+            box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            width: 160px;
+            padding: 5px 0;
+            overflow: hidden;
+        }
+
+        .context-menu-item {
+            padding: 10px 15px;
+            cursor: pointer;
+            font-size: 14px;
+            color: #333;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            transition: background-color 0.2s;
+        }
+
+        .context-menu-item:hover {
+            background-color: #f5f5f5;
+            color: var(--accent-color);
+        }
+
+        .context-menu-separator {
+            height: 1px;
+            background-color: #eee;
+            margin: 4px 0;
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <div class="sidebar">
+        <h2>设置 (Settings)</h2>
+
+        <!-- 图片上传 -->
+        <div class="control-group">
+            <label>输入图片</label>
+            <label for="fileInput" class="file-upload-btn" id="fileName">点击或拖拽上传图片...</label>
+            <input type="file" id="fileInput" accept="image/*">
+        </div>
+
+        <!-- 分辨率 -->
+        <div class="control-group">
+            <label>目标分辨率</label>
+            <div class="radio-group">
+                <label class="radio-label"><input type="radio" name="res" value="128" checked> 128x128</label>
+                <label class="radio-label"><input type="radio" name="res" value="256"> 256x256</label>
+            </div>
+        </div>
+
+        <!-- 温度 -->
+        <div class="control-group">
+            <label>温度 (锐度)</label>
+            <div style="display:flex; gap:10px; align-items: center;">
+                <input type="range" id="tempRange" min="0.0001" max="1" step="0.0001" value="0.01" style="flex:1">
+                <input type="number" id="tempInput" value="0.01" min="0.0001" max="1" step="0.0001" style="width: 80px;">
+            </div>
+        </div>
+
+        <!-- 噪声 -->
+        <div class="control-group">
+            <label>噪声强度 (创意度)</label>
+            <input type="number" id="noiseAmp" value="0.1" step="0.1">
+        </div>
+
+        <!-- 种子 -->
+        <div class="control-group">
+            <label>随机种子 (Seed)</label>
+            <span class="sub-label">设置为 -1 以获得随机结果</span>
+            <input type="number" id="seedInput" value="-1" step="1">
+        </div>
+
+        <div style="margin-top: auto; display: flex; flex-direction: column; gap: 10px;">
+            <button id="generateBtn" onclick="runInference()">生成像素画</button>
+            <div class="save-hint-text">提示：右键点击图片可复制或保存</div>
+        </div>
+        
+        <div id="statusMsg" style="color: #666; font-size: 0.85em; text-align: center; min-height: 1.2em; margin-top: 5px;"></div>
+    </div>
+
+    <div class="right-panel">
+        <!-- 预览区 (增加 id 以便 JS 调用) -->
+        <div class="preview-area" id="imageContainer" onwheel="handleZoom(event)">
+            <span class="placeholder" id="placeholderText">
+                拖拽图片到此处<br>或点击左侧上传<br>
+                <span style="font-size:0.8em; opacity:0.7">（滚轮缩放 / 左键拖动平移）</span>
+            </span>
+            <img id="resultImage" style="display: none;">
+            <div class="zoom-hint" id="zoomHint" style="display: none;">滚轮缩放 / 拖拽移动</div>
+        </div>
+
+        <!-- 色卡区 (独立) -->
+        <div class="palette-area">
+            <h3>色卡 (32色)</h3>
+            <div class="palette-scroll" id="paletteContainer">
+                <span style="color:#999; font-size: 0.9em;">色卡将显示在这里...</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<div id="contextMenu" class="context-menu">
+    <div class="context-menu-item" onclick="copyImageToClipboard()">
+        <span>📋</span> 复制图片 (Copy)
+    </div>
+    <div class="context-menu-separator"></div>
+    <div class="context-menu-item" onclick="saveImageToDisk()">
+        <span>💾</span> 另存为... (Save As)
+    </div>
+</div>
+
+<script>
+    let currentImageBase64 = null;
+    // 视图状态变量
+    let currentScale = 1;
+    let translateX = 0;
+    let translateY = 0;
+    let isDragging = false;
+    let startDragX = 0;
+    let startDragY = 0;
+
+    // UI 联动
+    const tempRange = document.getElementById('tempRange');
+    const tempInput = document.getElementById('tempInput');
+    const imageContainer = document.getElementById('imageContainer');
+    const resultImage = document.getElementById('resultImage');
+
+    tempRange.addEventListener('input', (e) => tempInput.value = e.target.value);
+    tempInput.addEventListener('input', (e) => tempRange.value = e.target.value);
+
+    // ============ 文件处理 (点击 + 拖拽) ============
+    
+    // 点击上传
+    document.getElementById('fileInput').addEventListener('change', handleFileSelect);
+
+    function handleFileSelect(event) {
+        const file = event.target.files[0];
+        if (file) loadFile(file);
+    }
+
+    // 拖拽上传逻辑
+    ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+        imageContainer.addEventListener(eventName, preventDefaults, false);
+    });
+
+    function preventDefaults(e) {
+        e.preventDefault();
+        e.stopPropagation();
+    }
+
+    // 高亮效果
+    imageContainer.addEventListener('dragover', () => imageContainer.classList.add('drag-over'));
+    imageContainer.addEventListener('dragleave', () => imageContainer.classList.remove('drag-over'));
+
+    // 放下文件
+    imageContainer.addEventListener('drop', (e) => {
+        imageContainer.classList.remove('drag-over');
+        const dt = e.dataTransfer;
+        const file = dt.files[0];
+        if (file) loadFile(file);
+    });
+
+    // 核心加载函数
+    function loadFile(file) {
+        // 简单校验是否为图片
+        if (!file.type.startsWith('image/')) {
+            alert('请上传图片文件！');
+            return;
+        }
+
+        document.getElementById('fileName').textContent = file.name.length > 20 ? file.name.substring(0, 17) + "..." : file.name;
+        
+        const reader = new FileReader();
+        reader.onload = function(e) {
+            currentImageBase64 = e.target.result;
+            resultImage.src = currentImageBase64;
+            resultImage.style.display = 'block';
+            
+            // 重置视图
+            resetView();
+            
+            document.getElementById('placeholderText').style.display = 'none';
+            document.getElementById('zoomHint').style.display = 'block';
+        };
+        reader.readAsDataURL(file);
+    }
+
+    // ============ 平移与缩放逻辑 (Pan & Zoom) ============
+
+    // 1. 鼠标滚轮缩放
+    function handleZoom(event) {
+        if (resultImage.style.display === 'none') return;
+        event.preventDefault();
+        
+        const zoomSpeed = 0.1;
+        const delta = -Math.sign(event.deltaY);
+        const newScale = currentScale + (delta * zoomSpeed);
+        
+        if (newScale > 0.1 && newScale < 20) {
+            currentScale = newScale;
+            updateImageTransform();
+        }
+    }
+
+    // 2. 鼠标拖拽平移
+    imageContainer.addEventListener('mousedown', (e) => {
+        if (resultImage.style.display === 'none') return;
+        // 只有左键(0)可以拖拽，且不是在右键菜单上
+        if (e.button !== 0) return;
+
+        isDragging = true;
+        startDragX = e.clientX - translateX;
+        startDragY = e.clientY - translateY;
+        imageContainer.style.cursor = 'grabbing';
+    });
+
+    window.addEventListener('mousemove', (e) => {
+        if (!isDragging) return;
+        e.preventDefault();
+        
+        translateX = e.clientX - startDragX;
+        translateY = e.clientY - startDragY;
+        
+        requestAnimationFrame(updateImageTransform);
+    });
+
+    window.addEventListener('mouseup', () => {
+        if (isDragging) {
+            isDragging = false;
+            imageContainer.style.cursor = 'grab';
+        }
+    });
+
+    function resetView() {
+        currentScale = 1;
+        translateX = 0;
+        translateY = 0;
+        updateImageTransform();
+    }
+
+    function updateImageTransform() {
+        // 先移动，再缩放 (注意：这里的 transform-origin 是 center center)
+        resultImage.style.transform = `translate(${translateX}px, ${translateY}px) scale(${currentScale})`;
+    }
+
+    // ============ 推理与其他逻辑 ============
+
+    // 调用 Python 生成
+    async function runInference() {
+        if (!currentImageBase64) {
+            alert("请先选择或拖拽一张图片！");
+            return;
+        }
+
+        const btn = document.getElementById('generateBtn');
+        const status = document.getElementById('statusMsg');
+        
+        btn.disabled = true;
+        btn.textContent = "正在处理...";
+        status.textContent = "正在运行 ONNX 推理...";
+
+        const settings = {
+            image: currentImageBase64,
+            resolution: document.querySelector('input[name="res"]:checked').value,
+            temperature: parseFloat(document.getElementById('tempInput').value),
+            seed: parseInt(document.getElementById('seedInput').value),
+            noise_amp: parseFloat(document.getElementById('noiseAmp').value)
+        };
+
+        try {
+            const response = await pywebview.api.process_image(settings);
+            
+            if (response.status === 'success') {
+                resultImage.src = response.image; // 更新图片
+                renderPalette(response.colors);
+                status.textContent = `完成! 耗时: ${response.time.toFixed(2)}秒`;
+            } else {
+                alert("错误: " + response.message);
+                status.textContent = "发生错误";
+            }
+        } catch (e) {
+            alert("系统错误: " + e);
+        } finally {
+            btn.disabled = false;
+            btn.textContent = "生成像素画";
+        }
+    }
+
+    // 渲染色板 HTML
+    function renderPalette(colors) {
+        const container = document.getElementById('paletteContainer');
+        container.innerHTML = '';
+        
+        if (!colors || colors.length === 0) {
+            container.innerHTML = '<span style="color:#999">未检测到颜色</span>';
+            return;
+        }
+
+        colors.forEach(colorHex => {
+            const div = document.createElement('div');
+            div.className = 'palette-swatch';
+            div.style.backgroundColor = colorHex;
+            div.title = colorHex;
+            
+            div.onclick = () => {
+                navigator.clipboard.writeText(colorHex);
+                document.getElementById('statusMsg').textContent = `已复制颜色 ${colorHex}`;
+            };
+            
+            container.appendChild(div);
+        });
+    }
+
+    // ============ 右键菜单逻辑 ============
+    const contextMenu = document.getElementById('contextMenu');
+
+    // 监听图片的右键点击
+    // 改为监听 container，这样拖拽时如果点空了也能触发（如果需要的话），或者保持只在img上触发
+    // 这里保持在 container 上监听，以便用户在图片缩小后也能在周围点击
+    imageContainer.addEventListener('contextmenu', function(e) {
+        e.preventDefault(); 
+        if (resultImage.style.display === 'none' || !resultImage.src) return;
+
+        const x = e.pageX;
+        const y = e.pageY;
+        
+        contextMenu.style.left = `${x}px`;
+        contextMenu.style.top = `${y}px`;
+        contextMenu.style.display = 'block';
+    });
+
+    document.addEventListener('click', function(e) {
+        if (e.target.closest('#contextMenu')) return;
+        contextMenu.style.display = 'none';
+    });
+
+    async function copyImageToClipboard() {
+        contextMenu.style.display = 'none';
+        const status = document.getElementById('statusMsg');
+        try {
+            const src = resultImage.src;
+            const response = await fetch(src);
+            const blob = await response.blob();
+            await navigator.clipboard.write([
+                new ClipboardItem({ [blob.type]: blob })
+            ]);
+            status.textContent = "图片已复制到剪贴板！";
+        } catch (err) {
+            console.error(err);
+            status.textContent = "复制失败，浏览器安全限制。";
+        }
+    }
+
+    function saveImageToDisk() {
+        contextMenu.style.display = 'none';
+        const src = resultImage.src;
+        if(!src) {
+            alert("没有图片可保存");
+            return;
+        }
+        const status = document.getElementById('statusMsg');
+        status.textContent = "正在打开保存对话框...";
+        try {
+            pywebview.api.save_image(src);
+        } catch (e) {
+            status.textContent = "系统错误";
+        }
+    }
+</script>
+
+</body>
+</html>
